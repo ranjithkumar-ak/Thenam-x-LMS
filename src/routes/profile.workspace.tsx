@@ -25,6 +25,7 @@ function WorkspaceSettingsPage() {
   const { role, current } = useRole();
   const { data: profile, isLoading } = useProfile(role);
   const updateProfile = useUpdateProfile(role);
+  const avatarUrl = profile?.avatar_url ?? "";
 
   const initialState = useMemo<WorkspaceFormState>(
     () => ({
@@ -126,6 +127,15 @@ function WorkspaceSettingsPage() {
           <SectionTitle action={<Badge tone="success">Navigation</Badge>} description="Choose how the workspace behaves when this account opens.">
             Sidebar and shortcuts
           </SectionTitle>
+          <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border/70 bg-secondary/25 p-4">
+            <div className="flex size-14 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-gradient-to-br from-brand-500 to-brand-700 text-lg font-bold text-brand-foreground">
+              {avatarUrl ? <img src={avatarUrl} alt={current.person} className="h-full w-full object-cover" /> : current.person.slice(0, 1)}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">{current.person}</p>
+              <p className="text-xs text-muted-foreground">Avatar and workspace settings stay in sync with the profile page.</p>
+            </div>
+          </div>
           <div className="space-y-3 rounded-2xl border border-border/70 bg-secondary/25 p-4 text-sm">
             {[
               ["compact_sidebar", "Compact sidebar"],

@@ -102,6 +102,7 @@ export type ProfileRecord = {
   phone: string;
   location: string;
   bio: string;
+  avatar_url: string;
   theme: "light" | "dark" | "system";
   accent: "brand" | "emerald" | "amber" | "rose";
   density: "comfortable" | "compact";
@@ -478,8 +479,8 @@ export function useUpdateProfile(role: Role | undefined) {
     },
     onSuccess: (response) => {
       const profile = response.data;
-      queryClient.setQueryData(["profile", profile.role], profile);
-      queryClient.invalidateQueries({ queryKey: ["profile", profile.role, "activity"] });
+      queryClient.setQueryData(["profile", profile.role], response);
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
   });
 }

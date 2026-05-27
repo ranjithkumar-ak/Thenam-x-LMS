@@ -24,6 +24,7 @@ const profileSchema = new mongoose.Schema(
     phone: { type: String, default: "" },
     location: { type: String, default: "" },
     bio: { type: String, default: "" },
+    avatar_url: { type: String, default: "" },
     theme: { type: String, enum: ["light", "dark", "system"], default: "system" },
     accent: { type: String, enum: ["brand", "emerald", "amber", "rose"], default: "brand" },
     density: { type: String, enum: ["comfortable", "compact"], default: "comfortable" },
