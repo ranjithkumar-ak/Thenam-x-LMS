@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import {
   Area,
   AreaChart,
@@ -20,6 +21,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { useClassAnalyticsQueries, usePayments, useStudents, useTeachers, useTimetable } from "@/hooks/api-hooks";
 import {
   Badge,
   Card,
@@ -35,26 +37,113 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDashboardPage,
 });
 
-const alerts = [
-  { title: "Fee collections are 94% on track", detail: "Most sections are above target for this term.", tone: "success" as const },
-  { title: "Attendance dip in Grade 10-B", detail: "A one-click intervention can be sent to teachers and parents.", tone: "warning" as const },
-  { title: "2 staff profiles need review", detail: "Role and timetable updates are pending approval.", tone: "brand" as const },
-];
-
-const activity = [
-  { label: "Admissions updated", time: "8 min ago" },
-  { label: "Weekly report generated", time: "22 min ago" },
-  { label: "Staff timetable synced", time: "1 hr ago" },
-  { label: "Parent alerts delivered", time: "3 hr ago" },
-];
-
 function AdminDashboardPage() {
-  const departmentData = [
-    { name: "Academics", score: 92 },
-    { name: "Operations", score: 88 },
-    { name: "Finance", score: 95 },
-    { name: "Student Care", score: 89 },
-  ];
+  const { data: students } = useStudents();
+  const { data: teachers } = useTeachers();
+  const { data: payments } = usePayments();
+  const { data: timetable } = useTimetable();
+
+  const classIds = useMemo(
+    () => Array.from(new Set((students ?? []).map((student) => student.class_id))).slice(0, 4),
+    [students],
+  );
+  const classAnalytics = useClassAnalyticsQueries(classIds);
+
+  const departmentData = useMemo(
+    () =>
+      classAnalytics
+        .map((result) => result.data)
+        .filter(Boolean)
+        .map((item) => ({
+          name: item!.class_id,
+          score: item!.attendance_rate,
+        })),
+    [classAnalytics],
+  );
+
+  const weeklyData = useMemo(() => {
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const slotsByDay = new Map(days.map((day) => [day, 0]));
+    const revenueByDay = new Map(days.map((day) => [day, 0]));
+    let maxSlots = 1;
+    let maxRevenue = 1;
+
+    for (const slot of timetable ?? []) {
+      const day = slot.day.slice(0, 3);
+      const current = (slotsByDay.get(day) ?? 0) + 1;
+      slotsByDay.set(day, current);
+      maxSlots = Math.max(maxSlots, current);
+    }
+
+    for (const payment of payments ?? []) {
+      const day = new Date(payment.date).toLocaleDateString("en-US", { weekday: "short" });
+      const current = (revenueByDay.get(day) ?? 0) + payment.amount;
+      revenueByDay.set(day, current);
+      maxRevenue = Math.max(maxRevenue, current);
+    }
+
+    return days.map((day) => ({
+      day,
+      attendance: Math.round(((slotsByDay.get(day) ?? 0) / maxSlots) * 100),
+      revenue: Math.round(((revenueByDay.get(day) ?? 0) / maxRevenue) * 100),
+    }));
+  }, [payments, timetable]);
+
+  const alerts = useMemo(() => {
+    const lowestAttendance = classAnalytics
+      .map((result) => result.data)
+      .filter(Boolean)
+      .sort((left, right) => left!.attendance_rate - right!.attendance_rate)[0];
+
+    return [
+      {
+        title: `${teachers?.length ?? 0} teaching staff synced`,
+        detail: "The staff directory is now backed by live backend records.",
+        tone: "success" as const,
+      },
+      {
+        title: `Ledger contains ${payments?.length ?? 0} recent payments`,
+        detail: "Payment updates now flow through realtime cache invalidation.",
+        tone: "brand" as const,
+      },
+      {
+        title: lowestAttendance
+          ? `Class ${lowestAttendance.class_id} attendance is ${lowestAttendance.attendance_rate}%`
+          : "Attendance analytics are loading",
+        detail: lowestAttendance
+          ? "Use the live class insights page to review the weakest cohort first."
+          : "Class-level attendance insights will appear as soon as analytics load.",
+        tone: lowestAttendance && lowestAttendance.attendance_rate < 90 ? "warning" : "success",
+      },
+    ];
+  }, [classAnalytics, teachers?.length, payments?.length]);
+
+  const activity = useMemo(
+    () => [
+      ...(payments ?? []).slice(0, 2).map((payment) => ({
+        label: `${payment.method} payment from ${payment.student_id}`,
+        time: new Date(payment.date).toLocaleDateString(),
+      })),
+      ...(timetable ?? []).slice(0, 2).map((slot) => ({
+        label: `${slot.class_id} ${slot.subject} scheduled`,
+        time: `${slot.day} · ${slot.start_time}`,
+      })),
+    ],
+    [payments, timetable],
+  );
+
+  const liveAnalytics = classAnalytics.map((result) => result.data).filter(Boolean);
+  const averageAttendance = liveAnalytics.length
+    ? Math.round(liveAnalytics.reduce((sum, item) => sum + item!.attendance_rate, 0) / liveAnalytics.length)
+    : 0;
+
+  const verifiedRate = payments?.length
+    ? Math.round(((payments.filter((payment) => payment.method === "UPI").length ?? 0) / payments.length) * 100)
+    : 0;
+
+  const timetableCoverage = timetable?.length
+    ? Math.min(100, Math.round((timetable.length / Math.max(1, classIds.length * 5)) * 100))
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -146,15 +235,7 @@ function AdminDashboardPage() {
           <div className="h-[340px] px-2 py-4 md:px-4">
             <ResponsiveContainer>
               <AreaChart
-                data={[
-                  { day: "Mon", attendance: 91, revenue: 74 },
-                  { day: "Tue", attendance: 92, revenue: 77 },
-                  { day: "Wed", attendance: 93, revenue: 79 },
-                  { day: "Thu", attendance: 94, revenue: 81 },
-                  { day: "Fri", attendance: 95, revenue: 84 },
-                  { day: "Sat", attendance: 96, revenue: 86 },
-                  { day: "Sun", attendance: 96, revenue: 87 },
-                ]}
+                data={weeklyData}
               >
                 <defs>
                   <linearGradient id="attendanceFill" x1="0" y1="0" x2="0" y2="1">
@@ -230,23 +311,23 @@ function AdminDashboardPage() {
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="font-medium text-foreground">Academic delivery</span>
-                <span className="text-muted-foreground">92%</span>
+                <span className="text-muted-foreground">{averageAttendance}%</span>
               </div>
-              <ProgressBar value={92} />
+              <ProgressBar value={averageAttendance} />
             </div>
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="font-medium text-foreground">Finance collection</span>
-                <span className="text-muted-foreground">94%</span>
+                <span className="text-muted-foreground">{verifiedRate}%</span>
               </div>
-              <ProgressBar value={94} tone="success" />
+              <ProgressBar value={verifiedRate} tone="success" />
             </div>
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="font-medium text-foreground">Student wellbeing</span>
-                <span className="text-muted-foreground">89%</span>
+                <span className="text-muted-foreground">{timetableCoverage}%</span>
               </div>
-              <ProgressBar value={89} tone="brand" />
+              <ProgressBar value={timetableCoverage} tone="brand" />
             </div>
             <div className="rounded-2xl border border-border/70 bg-brand-50/70 p-4 dark:bg-brand-500/10">
               <p className="text-sm font-semibold text-foreground">Leadership summary</p>

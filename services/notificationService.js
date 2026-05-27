@@ -3,6 +3,7 @@ import { Assignment } from "../models/Assignment.js";
 import { Fees } from "../models/Fees.js";
 import { Marks } from "../models/Marks.js";
 import { Notification } from "../models/Notification.js";
+import { Parent } from "../models/Parent.js";
 import { Student } from "../models/Student.js";
 
 function buildDerivedNotifications({ attendance, assignments, fees, marks }) {
@@ -106,6 +107,13 @@ export async function listNotificationsForStudent(studentId) {
   ]);
 
   return buildDerivedNotifications({ attendance, assignments, fees, marks });
+}
+
+export async function getNotificationsForParent(parentId) {
+  const parent = await Parent.findOne({ parent_id: parentId }, { _id: 0 }).lean();
+  if (!parent) return [];
+
+  return listNotificationsForStudent(parent.student_id);
 }
 
 export async function getUnreadNotificationCount(studentId) {

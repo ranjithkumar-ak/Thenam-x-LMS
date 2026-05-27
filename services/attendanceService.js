@@ -1,4 +1,5 @@
 import { Attendance } from "../models/Attendance.js";
+import { Parent } from "../models/Parent.js";
 import { Mapping } from "../models/Mapping.js";
 import { publishDomainEvent } from "../server/events/domainEvents.js";
 
@@ -23,9 +24,25 @@ export async function createOrUpdateAttendance({ student_id, class_id, date, sta
     { upsert: true, new: true, setDefaultsOnInsert: true },
   ).lean();
 
+  const [teacherMapping, parent] = await Promise.all([
+    Mapping.findOne({ class_id }, { _id: 0 }).lean(),
+    Parent.findOne({ student_id }, { _id: 0 }).lean(),
+  ]);
+
+  const rooms = [
+    "role:admin",
+    `class:${class_id}`,
+    `student:${student_id}`,
+    teacherMapping?.teacher_id ? `teacher:${teacherMapping.teacher_id}` : null,
+    parent?.parent_id ? `parent:${parent.parent_id}` : null,
+  ].filter(Boolean);
+
   publishDomainEvent("attendance.upserted", {
+    resource: "attendance",
+    action: "upserted",
     student_id,
     class_id,
+    rooms,
     attendance: record,
   });
 

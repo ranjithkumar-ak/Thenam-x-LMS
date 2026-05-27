@@ -20,7 +20,10 @@ type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown };
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
   const headers = new Headers(options.headers || {});
-  headers.set("Content-Type", "application/json");
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (!isFormData) {
+    headers.set("Content-Type", "application/json");
+  }
 
   const token = getAuthToken();
   if (token) {
@@ -30,7 +33,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const response = await fetch(url, {
     ...options,
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body:
+      options.body === undefined
+        ? undefined
+        : isFormData
+          ? (options.body as BodyInit)
+          : JSON.stringify(options.body),
   });
 
   const contentType = response.headers.get("content-type") || "";

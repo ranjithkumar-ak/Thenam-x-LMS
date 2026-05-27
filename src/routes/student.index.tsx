@@ -1,7 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { CalendarClock, Flame, Sparkles, CheckCircle2 } from "lucide-react";
 import { Card, PageHeader, SectionTitle, Badge, PrimaryButton, SecondaryButton, ProgressBar } from "@/components/app/ui-bits";
+import { useAuth } from "@/hooks/use-auth";
+import { useAttendanceSummary, useMarks, useStudentAssignments, useStudents } from "@/hooks/api-hooks";
 
 export const Route = createFileRoute("/student/")({
   head: () => ({ meta: [{ title: "Student Dashboard — AetherLMS" }] }),
@@ -9,11 +12,35 @@ export const Route = createFileRoute("/student/")({
 });
 
 function StudentDashboardPage() {
-  const tasks = [
-    { title: "Physics worksheet", due: "Tomorrow", status: "Urgent" },
-    { title: "Math revision set", due: "Fri", status: "In progress" },
-    { title: "English summary", due: "Next week", status: "Pending" },
-  ];
+  const navigate = useNavigate();
+  const { auth } = useAuth();
+  const { data: students } = useStudents();
+  const studentId = auth?.role === "student" ? auth.identifier : students?.[0]?.student_id;
+  const { data: assignments } = useStudentAssignments(studentId);
+  const { data: attendanceSummary } = useAttendanceSummary(studentId);
+  const { data: marks } = useMarks(studentId);
+
+  const tasks = useMemo(
+    () =>
+      (assignments ?? []).slice(0, 3).map((assignment, index) => ({
+        title: assignment.title,
+        due: new Date(assignment.due_date).toLocaleDateString(),
+        status:
+          assignment.status === "submitted"
+            ? "Submitted"
+            : index === 0
+              ? "Urgent"
+              : "In progress",
+        progress: assignment.status === "submitted" ? 100 : Math.max(35, 80 - index * 18),
+      })),
+    [assignments],
+  );
+
+  const attendancePercent = attendanceSummary?.overall.attendance_percent ?? 0;
+  const subjectCount = attendanceSummary?.subjects.length ?? 0;
+  const averageMark = marks?.length
+    ? Math.round(marks.reduce((sum, record) => sum + record.marks, 0) / marks.length)
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -24,8 +51,8 @@ function StudentDashboardPage() {
         actions={
           <>
             <Badge tone="success"><Flame className="mr-1 inline size-3" />7 day streak</Badge>
-            <PrimaryButton>Open AI tutor</PrimaryButton>
-            <SecondaryButton>View schedule</SecondaryButton>
+            <PrimaryButton onClick={() => navigate({ to: "/assistant" })}>Open AI tutor</PrimaryButton>
+            <SecondaryButton onClick={() => navigate({ to: "/student/attendance" })}>View schedule</SecondaryButton>
           </>
         }
       />
@@ -53,7 +80,7 @@ function StudentDashboardPage() {
                     <Badge tone={task.status === "Urgent" ? "warning" : task.status === "In progress" ? "brand" : "neutral"}>{task.status}</Badge>
                   </div>
                   <div className="mt-3 h-2 rounded-full bg-muted/50">
-                    <div className={`h-2 rounded-full ${index === 0 ? "bg-warning-500 w-3/4" : index === 1 ? "bg-brand-500 w-1/2" : "bg-success-500 w-1/3"}`} />
+                    <div className={`h-2 rounded-full ${index === 0 ? "bg-warning-500" : index === 1 ? "bg-brand-500" : "bg-success-500"}`} style={{ width: `${task.progress}%` }} />
                   </div>
                 </motion.div>
               ))}
@@ -66,8 +93,8 @@ function StudentDashboardPage() {
                 <p className="flex items-center gap-2"><Sparkles className="size-4 text-brand-600" />Ask the AI tutor for one hint, not the full answer.</p>
               </div>
               <div className="grid gap-2 pt-1">
-                <PrimaryButton>Open AI tutor</PrimaryButton>
-                <SecondaryButton>View calendar</SecondaryButton>
+                <PrimaryButton onClick={() => navigate({ to: "/assistant" })}>Open AI tutor</PrimaryButton>
+                <SecondaryButton onClick={() => navigate({ to: "/student/attendance" })}>View calendar</SecondaryButton>
               </div>
             </div>
           </div>
@@ -81,26 +108,26 @@ function StudentDashboardPage() {
             <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
               <p className="text-sm font-semibold text-foreground">Today’s plan</p>
               <ul className="mt-2 space-y-2 text-sm leading-6 text-muted-foreground">
-                <li>Finish the urgent worksheet before the end of lunch.</li>
-                <li>Use one revision block for math and one for physics.</li>
-                <li>Send a question to a teacher if you get stuck for more than 10 minutes.</li>
+                <li>Finish the highest priority assignment before the end of lunch.</li>
+                <li>Use one revision block for the subject with the lowest mark.</li>
+                <li>Open the attendance summary before planning the next study block.</li>
               </ul>
             </div>
             <div className="rounded-2xl border border-border/70 bg-brand-50/70 p-4 dark:bg-brand-500/10">
               <p className="text-sm font-semibold text-foreground">Study consistency</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">Your consistency is strongest when you study in short blocks before dinner. Keep that pattern for the next three days.</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Your attendance is currently {attendancePercent}% across {subjectCount} tracked subjects. Keep the short-block routine and the marks will follow.</p>
             </div>
             <div className="rounded-2xl border border-border/70 p-4">
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="text-foreground">Assignments completed</span>
-                <span className="text-muted-foreground">72%</span>
+                <span className="text-muted-foreground">{Math.min(100, tasks.filter((task) => task.status === "Submitted").length * 34 + tasks.length * 10)}%</span>
               </div>
-              <ProgressBar value={72} tone="success" />
+              <ProgressBar value={Math.min(100, tasks.filter((task) => task.status === "Submitted").length * 34 + tasks.length * 10)} tone="success" />
               <div className="mt-4 mb-2 flex items-center justify-between text-sm">
                 <span className="text-foreground">Exam readiness</span>
-                <span className="text-muted-foreground">81%</span>
+                <span className="text-muted-foreground">{averageMark}%</span>
               </div>
-              <ProgressBar value={81} />
+              <ProgressBar value={averageMark} />
             </div>
           </div>
         </Card>

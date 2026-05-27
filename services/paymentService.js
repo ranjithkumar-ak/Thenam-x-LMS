@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 
 import { Fees } from "../models/Fees.js";
 import { Payment } from "../models/Payment.js";
+import { Parent } from "../models/Parent.js";
+import { Student } from "../models/Student.js";
 import { publishDomainEvent } from "../server/events/domainEvents.js";
 
 export async function listPayments() {
@@ -51,8 +53,24 @@ export async function createPayment({ student_id, amount, method, date, transact
 
   session.endSession();
 
+  const [student, parent] = await Promise.all([
+    Student.findOne({ student_id }, { _id: 0 }).lean(),
+    Parent.findOne({ student_id }, { _id: 0 }).lean(),
+  ]);
+
+  const rooms = [
+    "role:admin",
+    "role:accounts",
+    `student:${student_id}`,
+    student?.class_id ? `class:${student.class_id}` : null,
+    parent?.parent_id ? `parent:${parent.parent_id}` : null,
+  ].filter(Boolean);
+
   publishDomainEvent("payment.created", {
+    resource: "payments",
+    action: "created",
     student_id,
+    rooms,
     payment,
     fees: updatedFees,
   });

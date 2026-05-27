@@ -35,12 +35,26 @@ function forwardEvent(eventName, payload) {
   const studentId = payload?.student_id || payload?.studentId;
   const teacherId = payload?.teacher_id || payload?.teacherId;
   const parentId = payload?.parent_id || payload?.parentId;
+  const userId = payload?.user_id || payload?.userId;
   const role = payload?.role;
+
+  if (Array.isArray(payload?.rooms)) {
+    for (const room of payload.rooms) {
+      if (typeof room === "string" && room.trim()) {
+        rooms.add(room);
+      }
+    }
+  }
+
+  if (typeof payload?.room === "string" && payload.room.trim()) {
+    rooms.add(payload.room);
+  }
 
   if (classId) rooms.add(`class:${classId}`);
   if (studentId) rooms.add(`student:${studentId}`);
   if (teacherId) rooms.add(`teacher:${teacherId}`);
   if (parentId) rooms.add(`parent:${parentId}`);
+  if (userId) rooms.add(`user:${userId}`);
   if (role) rooms.add(`role:${role}`);
 
   rooms.add("role:admin");

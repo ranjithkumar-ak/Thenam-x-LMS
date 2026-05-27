@@ -1,6 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { ArrowRight, CalendarDays, HeartHandshake, MessageSquare, ShieldCheck, Sparkles } from "lucide-react";
 import { Card, PageHeader, SectionTitle, Badge, ProgressBar, SecondaryButton } from "@/components/app/ui-bits";
+import { useAuth } from "@/hooks/use-auth";
+import { useAttendanceSummary, useNotifications, useParentOverview, useStudents } from "@/hooks/api-hooks";
 
 export const Route = createFileRoute("/parent/")({
   head: () => ({ meta: [{ title: "Parent Dashboard — AetherLMS" }] }),
@@ -8,11 +11,30 @@ export const Route = createFileRoute("/parent/")({
 });
 
 function ParentDashboardPage() {
-  const notes = [
-    { title: "Parent-teacher meeting", detail: "Scheduled for Thursday at 4:15 PM." },
-    { title: "Science project progress", detail: "Your child has completed 80% of the required work." },
-    { title: "Attendance note", detail: "One late arrival was recorded this week." },
-  ];
+  const navigate = useNavigate();
+  const { auth } = useAuth();
+  const { data: students } = useStudents();
+  const parentId = auth?.role === "parent" ? auth.identifier : undefined;
+  const { data: overview } = useParentOverview(parentId);
+  const childStudentId = overview?.student?.student_id ?? students?.[0]?.student_id;
+  const { data: fallbackAttendance } = useAttendanceSummary(childStudentId);
+  const { data: fallbackNotifications } = useNotifications(childStudentId);
+
+  const notes = useMemo(
+    () =>
+      (overview?.notifications?.length ? overview.notifications : fallbackNotifications ?? [])
+        .slice(0, 3)
+        .map((notification) => ({
+          title: notification.title,
+          detail: notification.message,
+        })),
+    [fallbackNotifications, overview?.notifications],
+  );
+
+  const attendancePercent = overview?.attendanceSummary?.overall.attendance_percent ?? fallbackAttendance?.overall.attendance_percent ?? 0;
+  const homeworkPercent = overview?.assignments?.length
+    ? Math.round((overview.assignments.filter((assignment) => assignment.status === "submitted").length / overview.assignments.length) * 100)
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -20,7 +42,7 @@ function ParentDashboardPage() {
         eyebrow="Family portal"
         title="Parent Dashboard"
         subtitle="A reassuring view of attendance, communication, and academic progress designed to feel calm and easy to trust."
-        actions={<SecondaryButton>Message teacher</SecondaryButton>}
+        actions={<SecondaryButton onClick={() => navigate({ to: "/parent/notifications" })}>Message teacher</SecondaryButton>}
       />
 
       <Card className="p-5">
@@ -56,20 +78,24 @@ function ParentDashboardPage() {
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="text-foreground">Attendance</span>
-                <span className="text-muted-foreground">96%</span>
+                <span className="text-muted-foreground">{attendancePercent}%</span>
               </div>
-              <ProgressBar value={96} tone="success" />
+              <ProgressBar value={attendancePercent} tone="success" />
             </div>
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="text-foreground">Homework completion</span>
-                <span className="text-muted-foreground">88%</span>
+                <span className="text-muted-foreground">{homeworkPercent}%</span>
               </div>
-              <ProgressBar value={88} />
+              <ProgressBar value={homeworkPercent} />
             </div>
             <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
               <p className="text-sm font-semibold text-foreground">Teacher note</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">Your child is participating well in class and benefits from a short revision routine after dinner.</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {overview?.student
+                  ? `Child progress is synced from ${overview.student.class_id}. Attendance and notifications update in real time.`
+                  : "Child progress will appear once the parent account is linked to a student record."}
+              </p>
             </div>
           </div>
         </Card>

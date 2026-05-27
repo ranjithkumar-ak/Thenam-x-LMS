@@ -18,7 +18,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useRole, ROLES, type Role } from "./role-context";
-import { useProfile } from "@/hooks/api-hooks";
+import { usePayments, useProfile, useProfileActivity, useStudents, useTeachers, useTimetable } from "@/hooks/api-hooks";
 import { logout } from "@/lib/auth";
 import {
   DropdownMenu,
@@ -42,28 +42,68 @@ import { Badge } from "./ui-bits";
 import { cn } from "@/lib/utils";
 
 const QUICK_ACTIONS = [
-  { label: "Open Admin Dashboard", to: "/admin" },
-  { label: "Open Student Overview", to: "/student" },
-  { label: "Open Teacher Workspace", to: "/teacher" },
-  { label: "Open Finance Ledger", to: "/accounts" },
-  { label: "Open AI Assistant", to: "/assistant" },
-];
-
-const NOTIFICATIONS = [
-  { title: "Attendance below threshold", detail: "Class C1A is at 87% this week.", tone: "warning" as const },
-  { title: "2 assignments pending grading", detail: "Teacher workspace needs attention.", tone: "brand" as const },
-  { title: "Fee reminder sent", detail: "Parent portal updated successfully.", tone: "success" as const },
+  { label: "Open Admin Dashboard", to: "/admin", role: "admin" as Role },
+  { label: "Open Student Overview", to: "/student", role: "student" as Role },
+  { label: "Open Teacher Workspace", to: "/teacher", role: "teacher" as Role },
+  { label: "Open Finance Ledger", to: "/accounts", role: "accounts" as Role },
+  { label: "Open AI Assistant", to: "/assistant", role: "student" as Role },
 ];
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const { role, setRole, current } = useRole();
   const navigate = useNavigate();
   const { data: profile } = useProfile(role);
+  const { data: profileActivity } = useProfileActivity(role);
+  const { data: students } = useStudents();
+  const { data: teachers } = useTeachers();
+  const { data: payments } = usePayments();
+  const { data: timetable } = useTimetable();
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const displayName = profile?.display_name ?? current.person;
+  const recentActivity = useMemo(
+    () => (profileActivity?.length ? profileActivity : profile?.recent_activity ?? []).slice(0, 3),
+    [profile?.recent_activity, profileActivity],
+  );
+
+  const liveSearch = useMemo(() => {
+    return {
+      students: (students ?? []).slice(0, 5).map((student) => ({
+        label: student.name,
+        detail: `${student.student_id} · Class ${student.class_id}`,
+        to: "/admin/students",
+        role: "admin" as Role,
+      })),
+      teachers: (teachers ?? []).slice(0, 5).map((teacher) => ({
+        label: teacher.name,
+        detail: `${teacher.teacher_id} · ${teacher.subject}`,
+        to: "/admin/staff",
+        role: "admin" as Role,
+      })),
+      payments: (payments ?? []).slice(0, 4).map((payment) => ({
+        label: `${payment.student_id} · ${payment.amount.toLocaleString()}`,
+        detail: `${payment.method} · ${new Date(payment.date).toLocaleDateString()}`,
+        to: "/accounts/transactions",
+        role: "accounts" as Role,
+      })),
+      timetable: (timetable ?? []).slice(0, 4).map((slot) => ({
+        label: `${slot.class_id} · ${slot.subject}`,
+        detail: `${slot.day} · ${slot.start_time} - ${slot.end_time}`,
+        to: "/admin/timetable",
+        role: "admin" as Role,
+      })),
+    };
+  }, [payments, students, teachers, timetable]);
+
+  function openRoute(to: string, nextRole?: Role) {
+    if (nextRole && nextRole !== role) {
+      setRole(nextRole);
+    }
+    setSearchOpen(false);
+    navigate({ to: to as any });
+  }
 
   const initials = useMemo(
     () =>
@@ -210,17 +250,18 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
                   <p className="text-sm font-semibold text-foreground">Notifications</p>
                   <p className="text-xs text-muted-foreground">Recent activity from the campus</p>
                 </div>
-                <Badge tone="brand">3 new</Badge>
+                <Badge tone="brand">{recentActivity.length ? `${recentActivity.length} updates` : "0 updates"}</Badge>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {NOTIFICATIONS.map((item) => (
-                <DropdownMenuItem key={item.title} className="rounded-2xl px-3 py-3">
+              {recentActivity.map((item) => (
+                <DropdownMenuItem key={`${item.title}-${item.at}`} onSelect={() => navigate({ to: "/profile/activity" as any })} className="rounded-2xl px-3 py-3">
                   <div className="flex items-start gap-3">
                     <div className={cn(
                       "mt-0.5 flex size-9 items-center justify-center rounded-xl",
                       item.tone === "warning" && "bg-warning/15 text-warning",
                       item.tone === "brand" && "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300",
                       item.tone === "success" && "bg-success/10 text-success",
+                      item.tone === "neutral" && "bg-secondary/80 text-muted-foreground",
                     )}>
                       <CircleAlert className="size-4" />
                     </div>
@@ -231,6 +272,15 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
                   </div>
                 </DropdownMenuItem>
               ))}
+              {recentActivity.length === 0 && (
+                <DropdownMenuItem disabled className="rounded-2xl px-3 py-3 text-muted-foreground">
+                  No recent activity yet.
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => navigate({ to: "/profile/activity" as any })} className="rounded-xl px-3 py-2.5">
+                View full activity
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -293,11 +343,66 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
               <CommandItem
                 key={action.to}
                 onSelect={() => {
-                  setSearchOpen(false);
-                  navigate({ to: action.to as any });
+                  openRoute(action.to, action.role);
                 }}
               >
                 {action.label}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading="Students">
+            {liveSearch.students.map((item) => (
+              <CommandItem key={`${item.label}-${item.detail}`} onSelect={() => openRoute(item.to, item.role)}>
+                <div className="flex w-full items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{item.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">{item.detail}</p>
+                  </div>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Open</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading="Teachers">
+            {liveSearch.teachers.map((item) => (
+              <CommandItem key={`${item.label}-${item.detail}`} onSelect={() => openRoute(item.to, item.role)}>
+                <div className="flex w-full items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{item.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">{item.detail}</p>
+                  </div>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Open</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading="Finance">
+            {liveSearch.payments.map((item) => (
+              <CommandItem key={`${item.label}-${item.detail}`} onSelect={() => openRoute(item.to, item.role)}>
+                <div className="flex w-full items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{item.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">{item.detail}</p>
+                  </div>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Open</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading="Schedule">
+            {liveSearch.timetable.map((item) => (
+              <CommandItem key={`${item.label}-${item.detail}`} onSelect={() => openRoute(item.to, item.role)}>
+                <div className="flex w-full items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{item.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">{item.detail}</p>
+                  </div>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Open</span>
+                </div>
               </CommandItem>
             ))}
           </CommandGroup>

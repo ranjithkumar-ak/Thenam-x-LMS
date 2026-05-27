@@ -1,7 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { ArrowUpRight, BadgeCheck, Clock3, ReceiptText, Sparkles, Wallet } from "lucide-react";
 import { AreaChart, Area, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, PageHeader, SectionTitle, Badge, PrimaryButton, SecondaryButton, ProgressBar } from "@/components/app/ui-bits";
+import { usePayments, useStudents } from "@/hooks/api-hooks";
 
 export const Route = createFileRoute("/accounts/")({
   head: () => ({ meta: [{ title: "Accounts Dashboard — AetherLMS" }] }),
@@ -9,14 +11,31 @@ export const Route = createFileRoute("/accounts/")({
 });
 
 function AccountsDashboardPage() {
-  const revenue = [
-    { month: "Jan", value: 78 },
-    { month: "Feb", value: 80 },
-    { month: "Mar", value: 82 },
-    { month: "Apr", value: 84 },
-    { month: "May", value: 88 },
-    { month: "Jun", value: 91 },
-  ];
+  const navigate = useNavigate();
+  const { data: students } = useStudents();
+  const { data: payments } = usePayments();
+
+  const revenue = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+    const revenueByMonth = new Map(months.map((month) => [month, 0]));
+
+    for (const payment of payments ?? []) {
+      const month = new Date(payment.date).toLocaleDateString("en-US", { month: "short" });
+      revenueByMonth.set(month, (revenueByMonth.get(month) ?? 0) + payment.amount);
+    }
+
+    const maxRevenue = Math.max(1, ...Array.from(revenueByMonth.values()));
+
+    return months.map((month) => ({
+      month,
+      value: Math.round(((revenueByMonth.get(month) ?? 0) / maxRevenue) * 100),
+    }));
+  }, [payments]);
+
+  const totalAmount = payments?.reduce((sum, payment) => sum + payment.amount, 0) ?? 0;
+  const upiCount = payments?.filter((payment) => payment.method === "UPI").length ?? 0;
+  const verifiedRate = payments?.length ? Math.round((upiCount / payments.length) * 100) : 0;
+  const studentCount = students?.length ?? 0;
 
   return (
     <div className="space-y-8">
@@ -27,8 +46,8 @@ function AccountsDashboardPage() {
         actions={
           <>
             <Badge tone="success"><BadgeCheck className="mr-1 inline size-3" />UPI verified</Badge>
-            <PrimaryButton>Record payment</PrimaryButton>
-            <SecondaryButton>Export ledger</SecondaryButton>
+            <PrimaryButton onClick={() => navigate({ to: "/accounts/transactions" })}>Record payment</PrimaryButton>
+            <SecondaryButton onClick={() => navigate({ to: "/accounts/transactions" })}>Export ledger</SecondaryButton>
           </>
         }
       />
@@ -104,7 +123,7 @@ function AccountsDashboardPage() {
               </div>
               <div className="rounded-2xl border border-border/70 bg-brand-50/70 p-4 dark:bg-brand-500/10">
                 <p className="text-sm font-semibold text-foreground">Finance note</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">UPI verification is active across most transactions, reducing manual review and speeding up reconciliation.</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{upiCount} of {payments?.length ?? 0} payments are UPI verified across {studentCount} active student records.</p>
               </div>
             </div>
           </Card>
@@ -118,10 +137,14 @@ function AccountsDashboardPage() {
                 "Verify UPI payments",
                 "Send overdue reminders",
               ].map((item) => (
-                <div key={item} className="flex items-center justify-between rounded-2xl border border-border/70 px-4 py-3">
+                <button
+                  key={item}
+                  onClick={() => navigate({ to: "/accounts/transactions" })}
+                  className="flex items-center justify-between rounded-2xl border border-border/70 px-4 py-3 text-left transition hover:border-brand-300"
+                >
                   <p className="text-sm font-medium text-foreground">{item}</p>
                   <ArrowUpRight className="size-4 text-muted-foreground" />
-                </div>
+                </button>
               ))}
             </div>
           </Card>

@@ -1,6 +1,7 @@
 import { AppError } from "../utils/appError.js";
 import { ok } from "../utils/apiResponse.js";
 import { Profile } from "../models/Profile.js";
+import { publishDomainEvent } from "../server/events/domainEvents.js";
 
 const PROFILE_PRESETS = {
   admin: {
@@ -133,6 +134,13 @@ export async function updateProfile(req, res) {
   }
 
   await profile.save();
+  publishDomainEvent("profile.updated", {
+    resource: "profile",
+    action: "updated",
+    role: profile.role,
+    rooms: ["role:admin", `role:${profile.role}`],
+    profile: profile.toObject(),
+  });
   return ok(res, profile, undefined, "Profile saved successfully.");
 }
 

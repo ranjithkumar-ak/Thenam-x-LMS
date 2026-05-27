@@ -59,6 +59,10 @@ export async function listTimetable() {
   return Timetable.find({}, { _id: 0 }).sort({ day: 1, period: 1 }).lean();
 }
 
+export async function getTimetableByTeacher(teacherId) {
+  return Timetable.find({ teacher_id: teacherId }, { _id: 0 }).sort({ day: 1, period: 1 }).lean();
+}
+
 export async function createTimetableEntry(payload) {
   const timetable_id = payload.timetable_id || buildTimetableId(payload);
   const entry = await Timetable.findOneAndUpdate(

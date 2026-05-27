@@ -32,10 +32,13 @@ export async function chat(req, res) {
   });
 
   publishDomainEvent("ai.chat.completed", {
+    resource: "ai",
+    action: "completed",
     student_id,
     subject,
     question,
     student_class_id: student.class_id,
+    rooms: ["role:admin", `student:${student_id}`, `class:${student.class_id}`],
   });
 
   await recordAiInteraction({

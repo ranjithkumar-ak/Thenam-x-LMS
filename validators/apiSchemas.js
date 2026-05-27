@@ -46,6 +46,23 @@ export const assignmentCreateSchema = z.object({
   assignment_id: z.string().trim().min(1).optional(),
 });
 
+export const submissionAssignmentParamsSchema = z.object({
+  assignmentId: idString,
+});
+
+export const submissionAssignmentStudentParamsSchema = z.object({
+  assignmentId: idString,
+  studentId: idString,
+});
+
+export const submissionUpsertSchema = z.object({
+  student_id: idString,
+  marks: z.coerce.number().nonnegative().nullable().optional(),
+  notes: z.string().trim().min(1).optional(),
+  attachment_name: z.string().trim().min(1).optional(),
+  attachment_url: z.string().trim().min(1).optional(),
+});
+
 export const marksCreateSchema = z.object({
   student_id: idString,
   subject: z.string().trim().min(1),
@@ -104,4 +121,27 @@ export const profileUpdateSchema = z.object({
   email_notifications: z.coerce.boolean().optional(),
   sms_notifications: z.coerce.boolean().optional(),
   weekly_digest: z.coerce.boolean().optional(),
+});
+
+export const uploadCenterQuerySchema = z.object({
+  category: z.enum(["assignment", "test", "marks", "scheduling", "meeting"]).optional(),
+  status: z.enum(["draft", "published", "archived"]).optional(),
+  class_id: z.string().trim().min(1).optional(),
+  q: z.string().trim().min(1).optional(),
+  sort: z.enum(["newest", "oldest", "updated"]).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(100).optional(),
+});
+
+export const uploadCenterItemParamsSchema = z.object({
+  itemId: idString,
+});
+
+export const uploadCenterAttachmentParamsSchema = z.object({
+  itemId: idString,
+  fileId: idString,
+});
+
+export const uploadCenterFileParamsSchema = z.object({
+  fileId: idString,
 });

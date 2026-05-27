@@ -16,7 +16,7 @@ function TeacherAssignmentsPage() {
   const { data: assignments, isLoading } = useAssignments(classId);
   const createMutation = useCreateAssignment();
   const [form, setForm] = useState({ class_id: classId, subject: "", title: "" });
-  const submissionCount = (assignments ?? []).reduce((sum, assignment) => sum + Number((assignment as any).submission_count ?? 0), 0);
+  const submissionCount = (assignments ?? []).reduce((sum, assignment) => sum + Number(assignment.submissions_count ?? 0), 0);
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -136,15 +136,15 @@ function TeacherAssignmentsPage() {
                   <p className="font-semibold text-foreground">{assignment.title}</p>
                   <p className="text-xs text-muted-foreground">{assignment.subject}</p>
                 </div>
-                <Badge tone="brand">{(assignment as any).submission_count ?? 0} submissions</Badge>
+                <Badge tone="brand">{assignment.submissions_count ?? 0} submissions</Badge>
               </div>
               <div className="mt-4 rounded-2xl border border-border/70 bg-secondary/30 p-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-foreground">Submission progress</span>
-                  <span className="text-muted-foreground">{Math.min(100, Number((assignment as any).submission_count ?? 0) * 10)}%</span>
+                  <span className="text-muted-foreground">{Math.min(100, Number(assignment.submissions_count ?? 0) * 10)}%</span>
                 </div>
                 <div className="mt-3">
-                  <ProgressBar value={Math.min(100, Number((assignment as any).submission_count ?? 0) * 10)} />
+                  <ProgressBar value={Math.min(100, Number(assignment.submissions_count ?? 0) * 10)} />
                 </div>
               </div>
             </Card>
