@@ -22,6 +22,7 @@ import { useAIChat } from "@/hooks/api-hooks";
 import { useAuth } from "@/hooks/use-auth";
 import { resolveStudentId } from "@/lib/defaults";
 import { RequireRole } from "@/components/app/require-role";
+import { consumeAssistantPrompt } from "../lib/assistantPrompt";
 
 export const Route = createFileRoute("/assistant")({
   head: () => ({
@@ -84,6 +85,13 @@ function Assistant() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, active]);
+
+  useEffect(() => {
+    const prompt = consumeAssistantPrompt();
+    if (prompt) {
+      void send(prompt);
+    }
+  }, []);
 
   function updateMessage(id: number, text: string) {
     setConv((current) => {

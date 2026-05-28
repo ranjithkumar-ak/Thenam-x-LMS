@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Clock3, KanbanSquare, FileCheck2, Sparkles } from "lucide-react";
+import { Clock3, FileCheck2, Sparkles } from "lucide-react";
 import { Card, PageHeader, SectionTitle, Badge, ProgressBar, EmptyState, PrimaryButton, SecondaryButton } from "@/components/app/ui-bits";
 import { resolveStudentId } from "@/lib/defaults";
 import { useSaveSubmission, useStudentAssignments, type StudentAssignment } from "@/hooks/api-hooks";
 import { Skeleton } from "@/components/ui/skeleton";
+import { queueAssistantPrompt } from "../lib/assistantPrompt";
 
 export const Route = createFileRoute("/student/assignments")({
   head: () => ({ meta: [{ title: "Assignments — AetherLMS" }] }),
@@ -12,6 +14,7 @@ export const Route = createFileRoute("/student/assignments")({
 });
 
 function StudentAssignmentsPage() {
+  const navigate = useNavigate();
   const studentId = resolveStudentId(null);
   const { data: assignments, isLoading, isError } = useStudentAssignments(studentId);
   const saveSubmission = useSaveSubmission();
@@ -21,6 +24,8 @@ function StudentAssignmentsPage() {
   >({});
   const pending = (assignments ?? []).filter((assignment) => assignment.status === "pending");
   const submitted = (assignments ?? []).filter((assignment) => assignment.status === "submitted");
+  const totalAssignments = assignments?.length ?? 0;
+  const nextPendingAssignment = pending[0] ?? assignments?.[0];
 
   function openUploadEditor(assignment: StudentAssignment) {
     setEditingAssignmentId(assignment.assignment_id);
@@ -36,6 +41,20 @@ function StudentAssignmentsPage() {
 
   function closeUploadEditor() {
     setEditingAssignmentId(null);
+  }
+
+  function openNextTask() {
+    if (!nextPendingAssignment) return;
+    openUploadEditor(nextPendingAssignment);
+  }
+
+  function askForHint() {
+    const assignment = nextPendingAssignment;
+    const prompt = assignment
+      ? `Give me a short hint for my ${assignment.subject} assignment titled "${assignment.title}".`
+      : "Give me a short study hint for my next assignment.";
+    queueAssistantPrompt(prompt);
+    navigate({ to: "/assistant" });
   }
 
   function updateDraft(assignmentId: string, field: "notes" | "attachment_name" | "attachment_url", value: string) {
@@ -72,74 +91,60 @@ function StudentAssignmentsPage() {
       <PageHeader
         eyebrow="Student assignments"
         title="Assignments"
-        subtitle={`Student ${studentId} with a cleaner Kanban-style overview, urgency cues, and submission progress.`}
-        actions={<Badge tone="brand">{assignments?.length ?? 0} items</Badge>}
+        subtitle={`Student ${studentId} with a smaller workflow that keeps the next action obvious.`}
+        actions={
+          <>
+            <Badge tone="warning">{pending.length} pending</Badge>
+            <Badge tone="success">{submitted.length} submitted</Badge>
+            <Badge tone="brand">{totalAssignments} items</Badge>
+          </>
+        }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <Card className="p-5">
-          <SectionTitle action={<Badge tone="brand">Focus</Badge>} description="Use the list below as a real study queue, not a passive summary.">
-            Study lane
+          <SectionTitle action={<Badge tone="brand">Focus</Badge>} description="A compact summary keeps the queue readable before the student opens any item.">
+            Submission rhythm
           </SectionTitle>
-          <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{pending.length} pending tasks</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{submitted.length} already submitted</p>
-                  </div>
-                  <Badge tone={pending.length > 0 ? "warning" : "success"}>{pending.length > 0 ? "Needs work" : "All clear"}</Badge>
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border/70 bg-secondary/25 px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{pending.length} pending tasks</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{submitted.length} already submitted</p>
                 </div>
+                <Badge tone={pending.length > 0 ? "warning" : "success"}>{pending.length > 0 ? "Needs work" : "All clear"}</Badge>
               </div>
-              <div className="space-y-3">
-                {pending.slice(0, 3).map((assignment) => (
-                  <div key={`lane-${assignment.assignment_id}`} className="rounded-2xl border border-border/70 bg-card px-4 py-3">
-                    <p className="text-sm font-semibold text-foreground">{assignment.title}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{assignment.subject} • Due {new Date(assignment.due_date).toLocaleDateString()}</p>
-                  </div>
-                ))}
-                {pending.length === 0 && <p className="text-sm text-muted-foreground">You are caught up for now.</p>}
+              <div className="mt-4">
+                <ProgressBar value={totalAssignments ? Math.round((submitted.length / totalAssignments) * 100) : 0} tone="success" />
               </div>
             </div>
-            <div className="space-y-3 rounded-3xl border border-border/70 bg-brand-50/50 p-4 dark:bg-brand-500/10">
-              <p className="text-sm font-semibold text-foreground">Task actions</p>
-              <div className="grid gap-2">
-                <PrimaryButton>Open next task</PrimaryButton>
-                <SecondaryButton>Ask AI for a hint</SecondaryButton>
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm text-foreground">
-                Finish one urgent task before moving to a new subject.
-              </div>
+            <div className="rounded-2xl border border-border/70 bg-brand-50/70 px-4 py-3 dark:bg-brand-500/10">
+              <p className="text-sm font-semibold text-foreground">Best next move</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Open the first pending task, attach the work, and save the details before starting a second subject.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <PrimaryButton type="button" onClick={openNextTask}>Open next task</PrimaryButton>
+              <SecondaryButton type="button" onClick={askForHint}>Ask AI for a hint</SecondaryButton>
             </div>
           </div>
         </Card>
 
         <Card className="p-5">
-          <SectionTitle action={<Badge tone="success">Momentum</Badge>} description="A quick view of the work that is already done and what still needs marks.">
-            Submission rhythm
+          <SectionTitle action={<Badge tone="success">Ready</Badge>} description="Use the edit button on any item to add the file name, URL, and notes without leaving the page.">
+            Upload details
           </SectionTitle>
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-border/70 bg-secondary/25 px-4 py-3">
-              <p className="text-sm font-semibold text-foreground">Submission progress</p>
-              <p className="mt-1 text-sm text-muted-foreground">Keep one assignment active at a time to reduce task switching.</p>
-              <div className="mt-3">
-                <ProgressBar value={pending.length || 25} tone="warning" />
-              </div>
-            </div>
-            <div className="rounded-2xl border border-border/70 bg-brand-50/70 px-4 py-3 dark:bg-brand-500/10">
-              <p className="text-sm font-semibold text-foreground">Submit early tip</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">If a task is nearly done, submit it before starting a new one so feedback comes back sooner.</p>
-            </div>
+          <div className="rounded-2xl border border-border/70 bg-secondary/25 px-4 py-3 text-sm text-muted-foreground">
+            Use the edit button on any item to add the file name, URL, and notes without leaving the page.
           </div>
         </Card>
       </div>
 
       <Card>
-        <SectionTitle action={<Badge tone="brand">{assignments?.length ?? 0} items</Badge>} description="A board-style layout with stronger urgency cues and more readable task cards.">
-          Assignment board
+        <SectionTitle action={<Badge tone="brand">{assignments?.length ?? 0} items</Badge>} description="A single list is easier to scan, easier to edit, and works better on smaller screens.">
+          Assignment list
         </SectionTitle>
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4">
           {isLoading && Array.from({ length: 3 }).map((_, index) => (
             <div key={`assignment-skeleton-${index}`} className="rounded-2xl border border-border/70 p-4">
               <Skeleton className="h-4 w-40" />
@@ -148,144 +153,99 @@ function StudentAssignmentsPage() {
           ))}
           {isError && <p className="text-sm text-danger">Failed to load assignments.</p>}
 
-          <div className="rounded-3xl border border-border/70 bg-secondary/20 p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-semibold text-foreground">Pending</p>
-              <Badge tone="warning">{pending.length}</Badge>
-            </div>
-            <div className="space-y-3">
-              {pending.map((assignment) => (
-                <div key={assignment.assignment_id} className="rounded-2xl border border-border/70 bg-card p-4">
-                  <p className="font-semibold text-foreground">{assignment.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{assignment.subject} • Due {new Date(assignment.due_date).toLocaleDateString()}</p>
-                  {assignment.attachment_url && (
-                    <a
-                      href={assignment.attachment_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 block text-xs font-medium text-brand-700 hover:underline dark:text-brand-300"
-                    >
-                      {assignment.attachment_name || "Open upload"}
-                    </a>
-                  )}
-                  <div className="mt-3">
-                    <ProgressBar value={35} tone="warning" />
+          {!isLoading && !isError && (assignments ?? []).length === 0 && (
+            <EmptyState
+              title="No assignments found"
+              description="Once assignments are posted, they will appear here with one clear edit action per item."
+              icon={FileCheck2}
+            />
+          )}
+
+          {(assignments ?? []).map((assignment) => {
+            const isEditing = editingAssignmentId === assignment.assignment_id;
+            const statusTone = assignment.status === "submitted" ? "success" : assignment.status === "graded" ? "brand" : "warning";
+
+            return (
+              <div key={assignment.assignment_id} className="rounded-2xl border border-border/70 bg-card p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-foreground">{assignment.title}</p>
+                      <Badge tone={statusTone}>{assignment.status}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {assignment.subject} • Due {new Date(assignment.due_date).toLocaleDateString()}
+                    </p>
                   </div>
-                  <div className="mt-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="neutral">{assignment.submission_marks ?? 0}/100</Badge>
                     <SecondaryButton type="button" onClick={() => openUploadEditor(assignment)}>
-                      {editingAssignmentId === assignment.assignment_id ? "Editing upload" : "Upload details"}
+                      {isEditing ? "Editing details" : "Edit details"}
                     </SecondaryButton>
                   </div>
-                  {editingAssignmentId === assignment.assignment_id && (
-                    <div className="mt-3 space-y-2 rounded-2xl border border-border/70 bg-secondary/25 p-3">
-                      <input
-                        value={drafts[assignment.assignment_id]?.attachment_name ?? ""}
-                        onChange={(event) => updateDraft(assignment.assignment_id, "attachment_name", event.target.value)}
-                        className="w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
-                        placeholder="Attachment name"
-                      />
-                      <input
-                        value={drafts[assignment.assignment_id]?.attachment_url ?? ""}
-                        onChange={(event) => updateDraft(assignment.assignment_id, "attachment_url", event.target.value)}
-                        className="w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
-                        placeholder="Attachment URL"
-                      />
-                      <textarea
-                        value={drafts[assignment.assignment_id]?.notes ?? ""}
-                        onChange={(event) => updateDraft(assignment.assignment_id, "notes", event.target.value)}
-                        className="min-h-20 w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
-                        placeholder="Submission notes"
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        <PrimaryButton type="button" onClick={() => saveUploadDetails(assignment.assignment_id)} disabled={saveSubmission.isPending}>
-                          {saveSubmission.isPending ? "Saving..." : "Save details"}
-                        </PrimaryButton>
-                        <SecondaryButton type="button" onClick={closeUploadEditor}>Cancel</SecondaryButton>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              ))}
-              {!isLoading && !isError && pending.length === 0 && <EmptyState title="All caught up" description="No pending tasks are waiting right now." />}
-            </div>
-          </div>
 
-          <div className="rounded-3xl border border-border/70 bg-secondary/20 p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-semibold text-foreground">Submitted</p>
-              <Badge tone="success">{submitted.length}</Badge>
-            </div>
-            <div className="space-y-3">
-              {submitted.map((assignment) => (
-                <div key={assignment.assignment_id} className="rounded-2xl border border-border/70 bg-card p-4">
-                  <p className="font-semibold text-foreground">{assignment.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{assignment.subject} • Marked {assignment.submission_marks ?? 0}/100</p>
-                  {assignment.attachment_url && (
-                    <a
-                      href={assignment.attachment_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 block text-xs font-medium text-brand-700 hover:underline dark:text-brand-300"
-                    >
-                      {assignment.attachment_name || "Open upload"}
-                    </a>
-                  )}
-                  <div className="mt-3">
-                    <ProgressBar value={assignment.submission_marks ?? 86} tone="success" />
-                  </div>
-                  <div className="mt-3">
-                    <SecondaryButton type="button" onClick={() => openUploadEditor(assignment)}>
-                      Edit upload details
-                    </SecondaryButton>
-                  </div>
-                  {editingAssignmentId === assignment.assignment_id && (
-                    <div className="mt-3 space-y-2 rounded-2xl border border-border/70 bg-secondary/25 p-3">
-                      <input
-                        value={drafts[assignment.assignment_id]?.attachment_name ?? ""}
-                        onChange={(event) => updateDraft(assignment.assignment_id, "attachment_name", event.target.value)}
-                        className="w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
-                        placeholder="Attachment name"
-                      />
-                      <input
-                        value={drafts[assignment.assignment_id]?.attachment_url ?? ""}
-                        onChange={(event) => updateDraft(assignment.assignment_id, "attachment_url", event.target.value)}
-                        className="w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
-                        placeholder="Attachment URL"
-                      />
-                      <textarea
-                        value={drafts[assignment.assignment_id]?.notes ?? ""}
-                        onChange={(event) => updateDraft(assignment.assignment_id, "notes", event.target.value)}
-                        className="min-h-20 w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
-                        placeholder="Submission notes"
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        <PrimaryButton type="button" onClick={() => saveUploadDetails(assignment.assignment_id)} disabled={saveSubmission.isPending}>
-                          {saveSubmission.isPending ? "Saving..." : "Save details"}
-                        </PrimaryButton>
-                        <SecondaryButton type="button" onClick={closeUploadEditor}>Cancel</SecondaryButton>
-                      </div>
-                    </div>
-                  )}
+                <div className="mt-4">
+                  <ProgressBar value={assignment.submission_marks ?? (assignment.status === "submitted" ? 86 : 35)} tone={assignment.status === "submitted" ? "success" : "warning"} />
                 </div>
-              ))}
-              {!isLoading && !isError && submitted.length === 0 && <EmptyState title="Nothing submitted yet" description="Submitted work will appear here with marks and progress." />}
-            </div>
-          </div>
 
-          <div className="rounded-3xl border border-border/70 bg-secondary/20 p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-semibold text-foreground">Submission history</p>
-              <Badge tone="brand">Latest</Badge>
-            </div>
-            <div className="space-y-3">
-              {(assignments ?? []).slice(0, 4).map((assignment) => (
-                <div key={`history-${assignment.assignment_id}`} className="rounded-2xl border border-border/70 bg-card p-4">
-                  <p className="font-semibold text-foreground">{assignment.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{assignment.subject} • {assignment.status}</p>
+                <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                  <div className="rounded-xl border border-border/70 bg-secondary/25 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em]">Submitted</p>
+                    <p className="mt-1 flex items-center gap-2 text-foreground"><Clock3 className="size-4 text-brand-600" />{assignment.submitted_at ? new Date(assignment.submitted_at).toLocaleDateString() : "Not yet"}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/70 bg-secondary/25 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em]">Attachment</p>
+                    <p className="mt-1 text-foreground">{assignment.attachment_name || "No file attached"}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/70 bg-secondary/25 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em]">Notes</p>
+                    <p className="mt-1 text-foreground">{assignment.submission_notes || "None yet"}</p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
+
+                {assignment.attachment_url && (
+                  <a
+                    href={assignment.attachment_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 block text-sm font-medium text-brand-700 hover:underline dark:text-brand-300"
+                  >
+                    Open attachment
+                  </a>
+                )}
+
+                {isEditing && (
+                  <div className="mt-4 space-y-2 rounded-2xl border border-border/70 bg-secondary/25 p-3">
+                    <input
+                      value={drafts[assignment.assignment_id]?.attachment_name ?? ""}
+                      onChange={(event) => updateDraft(assignment.assignment_id, "attachment_name", event.target.value)}
+                      className="w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
+                      placeholder="Attachment name"
+                    />
+                    <input
+                      value={drafts[assignment.assignment_id]?.attachment_url ?? ""}
+                      onChange={(event) => updateDraft(assignment.assignment_id, "attachment_url", event.target.value)}
+                      className="w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
+                      placeholder="Attachment URL"
+                    />
+                    <textarea
+                      value={drafts[assignment.assignment_id]?.notes ?? ""}
+                      onChange={(event) => updateDraft(assignment.assignment_id, "notes", event.target.value)}
+                      className="min-h-20 w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm"
+                      placeholder="Submission notes"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <PrimaryButton type="button" onClick={() => saveUploadDetails(assignment.assignment_id)} disabled={saveSubmission.isPending}>
+                        {saveSubmission.isPending ? "Saving..." : "Save details"}
+                      </PrimaryButton>
+                      <SecondaryButton type="button" onClick={closeUploadEditor}>Cancel</SecondaryButton>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </Card>
     </div>

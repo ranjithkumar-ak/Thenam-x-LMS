@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { BookOpen, BrainCircuit, TrendingDown, TrendingUp } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
-import { Card, PageHeader, SectionTitle, Badge, ProgressBar, EmptyState, PrimaryButton, SecondaryButton } from "@/components/app/ui-bits";
+import { Card, PageHeader, SectionTitle, Badge, ProgressBar } from "@/components/app/ui-bits";
 import { resolveStudentId } from "@/lib/defaults";
 import { useMarks } from "@/hooks/api-hooks";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,117 +45,100 @@ function StudentSubjectsPage() {
     }));
   }, [marks]);
 
+  const average = subjects.length ? Math.round(subjects.reduce((sum, item) => sum + item.percent, 0) / subjects.length) : 0;
+  const weakest = subjects.slice().sort((a, b) => a.percent - b.percent)[0];
+  const strongest = subjects.slice().sort((a, b) => b.percent - a.percent)[0];
+
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Student subjects"
         title="Subjects"
-        subtitle={`Academic progress for ${studentId} with performance cards, trend analysis, and study direction.`}
+        subtitle={`Academic progress for ${studentId} in a lighter layout with the useful bits first.`}
         actions={<Badge tone="brand">{subjects.length} subjects</Badge>}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="p-5">
-          <SectionTitle action={<Badge tone="brand">Plan</Badge>} description="Pick the subject that needs help first, then keep the session short and targeted.">
-            Revision board
-          </SectionTitle>
-          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Current average</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Across all graded subjects</p>
-                  </div>
-                  <span className="text-2xl font-bold text-foreground">{Math.round(subjects.reduce((sum, item) => sum + item.percent, 0) / Math.max(1, subjects.length) || 0)}%</span>
-                </div>
-                <div className="mt-4">
-                  <ProgressBar value={Math.round(subjects.reduce((sum, item) => sum + item.percent, 0) / Math.max(1, subjects.length) || 0)} tone="brand" />
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-border/70 p-4">
-                  <p className="text-sm font-semibold text-foreground">Weakest subject</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Start here for the next revision cycle.</p>
-                </div>
-                <div className="rounded-2xl border border-border/70 p-4">
-                  <p className="text-sm font-semibold text-foreground">Strongest subject</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Keep this one warm with light practice.</p>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-3 rounded-3xl border border-border/70 bg-brand-50/50 p-4 dark:bg-brand-500/10">
-              <p className="text-sm font-semibold text-foreground">Study tools</p>
-              <div className="grid gap-2">
-                <PrimaryButton>Start 20 min revision</PrimaryButton>
-                <SecondaryButton>Ask AI for a hint</SecondaryButton>
-              </div>
-              <p className="text-sm leading-6 text-muted-foreground">Short sessions beat long ones when you want better recall and less fatigue.</p>
-              <div className="rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm text-foreground">
-                Next step: focus on one weak topic and one practice set only.
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <SectionTitle action={<Badge tone="success">Direction</Badge>} description="Turn the chart below into a weekly habit, not a one-off check.">
-            Revision guide
-          </SectionTitle>
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-border/70 bg-secondary/25 px-4 py-3">
-              <p className="text-sm font-semibold text-foreground">Short rule</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">One subject, one worksheet, one practice question bank.</p>
-            </div>
-            <div className="rounded-2xl border border-border/70 bg-brand-50/70 px-4 py-3 dark:bg-brand-500/10">
-              <p className="text-sm font-semibold text-foreground">Weekly habit</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">Review the weakest subject twice: once before practice and once after.</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
       <div className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
-        <Card>
-          <SectionTitle action={<Badge tone="brand">Performance</Badge>} description="Subject cards with clearer hierarchy and lightweight progress presentation.">
-            Subject performance
+        <Card className="p-5">
+          <SectionTitle action={<Badge tone="brand">Snapshot</Badge>} description="One summary row and one table keep the useful information within a single glance.">
+            Subject results
           </SectionTitle>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {isError && <p className="text-sm text-danger">Failed to load marks.</p>}
-            {isLoading && Array.from({ length: 3 }).map((_, index) => (
-              <Card key={`subject-skeleton-${index}`} className="p-4">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="mt-2 h-8 w-20" />
-              </Card>
-            ))}
-            {subjects.map((subject) => (
-              <Card key={subject.subject} className="p-4" hoverable>
-                <p className="text-sm font-semibold text-foreground">{subject.subject}</p>
-                <p className="mt-2 text-3xl font-bold tracking-tight text-foreground">{subject.percent}%</p>
-                <p className="mt-1 text-xs text-muted-foreground">{subject.count} assessment(s)</p>
-                <div className="mt-4">
-                  <ProgressBar value={subject.percent} tone={subject.percent >= 85 ? "success" : subject.percent >= 70 ? "brand" : "warning"} />
-                </div>
-              </Card>
-            ))}
-            {!isLoading && !isError && subjects.length === 0 && (
-              <EmptyState
-                title="No subject marks found"
-                description="Once assessments are recorded, subject performance cards and revision insights will appear here."
-                icon={BookOpen}
-              />
-            )}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Average</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{average}%</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Weakest</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">{weakest ? weakest.subject : "No data"}</p>
+              <p className="text-xs text-muted-foreground">{weakest ? `${weakest.percent}%` : ""}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Strongest</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">{strongest ? strongest.subject : "No data"}</p>
+              <p className="text-xs text-muted-foreground">{strongest ? `${strongest.percent}%` : ""}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-surface-50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Subject</th>
+                  <th className="px-4 py-3">Average</th>
+                  <th className="px-4 py-3">Assessments</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {isLoading && (
+                  <tr>
+                    <td className="px-4 py-4" colSpan={3}>
+                      <Skeleton className="h-6 w-full" />
+                    </td>
+                  </tr>
+                )}
+                {isError && !isLoading && (
+                  <tr>
+                    <td className="px-4 py-4 text-danger" colSpan={3}>
+                      Failed to load marks.
+                    </td>
+                  </tr>
+                )}
+                {!isLoading && !isError && subjects.length === 0 && (
+                  <tr>
+                    <td className="px-4 py-4 text-muted-foreground" colSpan={3}>
+                      No subject marks found.
+                    </td>
+                  </tr>
+                )}
+                {subjects.map((subject) => (
+                  <tr key={subject.subject} className="transition hover:bg-secondary/30">
+                    <td className="px-4 py-4 font-medium text-foreground">{subject.subject}</td>
+                    <td className="px-4 py-4">
+                      <div className="max-w-xs">
+                        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                          <span>{subject.percent}%</span>
+                          <span>{subject.percent >= 85 ? "Strong" : subject.percent >= 70 ? "Steady" : "Needs focus"}</span>
+                        </div>
+                        <ProgressBar value={subject.percent} tone={subject.percent >= 85 ? "success" : subject.percent >= 70 ? "brand" : "warning"} />
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-muted-foreground">{subject.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
 
-        <Card>
-          <SectionTitle action={<Badge tone="success">Trend</Badge>} description="A line chart that makes it easy to see performance across exams.">
+        <Card className="p-5">
+          <SectionTitle action={<Badge tone="success">Trend</Badge>} description="A smaller chart with a short note keeps the page readable on mobile too.">
             Performance trend
           </SectionTitle>
           <div className="h-72">
             {isLoading ? (
               <Skeleton className="h-full w-full rounded-2xl" />
-            ) : (
+            ) : trend.length > 0 ? (
               <ResponsiveContainer>
                 <LineChart data={trend} margin={{ left: -12, right: 8 }}>
                   <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -165,11 +148,17 @@ function StudentSubjectsPage() {
                   <Line type="monotone" dataKey="score" stroke="var(--brand-600)" strokeWidth={3} dot={{ r: 4, fill: "var(--brand-600)" }} />
                 </LineChart>
               </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border/70 text-sm text-muted-foreground">
+                No trend data yet.
+              </div>
             )}
           </div>
           <div className="mt-4 rounded-2xl border border-border/70 bg-brand-50/70 p-4 dark:bg-brand-500/10">
-            <p className="text-sm font-semibold text-foreground">Revision insight</p>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">The chart suggests a stable upward slope. Keep your weakest subject on a short weekly revision loop and maintain the strongest subject with light practice.</p>
+            <p className="text-sm font-semibold text-foreground">Next step</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Work on the weakest subject first, then keep the strongest one warm with a short review block.
+            </p>
           </div>
         </Card>
       </div>

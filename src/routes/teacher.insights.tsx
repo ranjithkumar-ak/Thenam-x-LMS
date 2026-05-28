@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BarChart3, BookOpen, ShieldAlert, TrendingUp } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, PageHeader, SectionTitle, Badge, ProgressBar, EmptyState, PrimaryButton, SecondaryButton } from "@/components/app/ui-bits";
+import { Card, PageHeader, SectionTitle, Badge, ProgressBar } from "@/components/app/ui-bits";
 import { resolveTeacherClassId } from "@/lib/defaults";
 import { useClassAnalytics } from "@/hooks/api-hooks";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,59 +17,55 @@ function TeacherInsightsPage() {
   const subjectScores = analytics?.subject_scores ?? [];
   const topSubject = subjectScores.slice().sort((a, b) => b.averageScore - a.averageScore)[0];
   const weakSubject = subjectScores.slice().sort((a, b) => a.averageScore - b.averageScore)[0];
+  const averageScore = analytics?.average_score ?? 0;
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Teacher analytics"
         title="Class Insights"
-        subtitle={`Analytics for ${classId} with a more polished breakdown of attendance, scores, and subject trends.`}
-        actions={<Badge tone="brand">Insights live</Badge>}
+        subtitle={`Analytics for ${classId} with only the insights that help decide the next lesson.`}
+        actions={
+          <>
+            <Badge tone="brand">Insights live</Badge>
+            <Badge tone="success">{analytics?.attendance_rate ?? 0}% attendance</Badge>
+          </>
+        }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <Card className="p-5">
-          <SectionTitle action={<Badge tone="success">Next action</Badge>} description="This page should help decide what to teach next, not show another KPI wall.">
+          <SectionTitle action={<Badge tone="success">Next action</Badge>} description="One summary strip makes the important teaching signals easier to read.">
             Teaching signal
           </SectionTitle>
-          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Class strength</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{String(analytics?.student_count ?? 0)} students active in this class</p>
-                  </div>
-                  <Badge tone="brand">Active</Badge>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Attendance signal</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{analytics?.attendance_rate ?? 0}% attendance this term</p>
-                  </div>
-                  <Badge tone="success">Stable</Badge>
-                </div>
-                <div className="mt-4">
-                  <ProgressBar value={analytics?.attendance_rate ?? 0} tone="success" />
-                </div>
-              </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Students</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{analytics?.student_count ?? 0}</p>
             </div>
-            <div className="space-y-3 rounded-3xl border border-border/70 bg-brand-50/50 p-4 dark:bg-brand-500/10">
-              <p className="text-sm font-semibold text-foreground">Intervention tools</p>
-              <div className="grid gap-2">
-                <PrimaryButton>Plan catch-up lesson</PrimaryButton>
-                <SecondaryButton>Message weak-subject group</SecondaryButton>
-              </div>
-              <p className="text-sm leading-6 text-muted-foreground">Use the weakest subject to decide where to spend the next 30 minutes of lesson prep.</p>
+            <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Attendance</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{analytics?.attendance_rate ?? 0}%</p>
             </div>
+            <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Average score</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{averageScore}%</p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-border/70 bg-brand-50/70 p-4 dark:bg-brand-500/10">
+            <p className="text-sm font-semibold text-foreground">Lesson focus</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {weakSubject
+                ? `Spend the next lesson on ${weakSubject.subject}; it is the clearest area for quick improvement.`
+                : "Once marks arrive, the weakest subject will appear here as the next focus."}
+            </p>
           </div>
         </Card>
 
         <Card className="p-5">
-          <SectionTitle action={<Badge tone="brand">Focus</Badge>} description="A short list of what the numbers actually mean for your next lesson.">
-            Teaching summary
+          <SectionTitle action={<Badge tone="brand">Support</Badge>} description="Keep the follow-up actions short and directly tied to the numbers.">
+            Quick actions
           </SectionTitle>
           <div className="space-y-3">
             <div className="rounded-2xl border border-border/70 bg-secondary/25 px-4 py-3">
@@ -81,80 +77,62 @@ function TeacherInsightsPage() {
               <p className="mt-1 text-sm text-muted-foreground">{weakSubject ? `${weakSubject.subject} (${weakSubject.averageScore}%)` : "No data yet"}</p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-brand-50/70 px-4 py-3 dark:bg-brand-500/10">
-              <p className="text-sm font-semibold text-foreground">Focus tip</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">If attendance stays strong, the score gap is usually the fastest lever to close with one small intervention.</p>
+              <p className="text-sm font-semibold text-foreground">Intervention tip</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">If attendance is steady, a small score intervention usually gives the fastest lift.</p>
             </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <Card>
-          <SectionTitle action={<Badge tone="brand">Subjects</Badge>} description="A bar chart plus score cards gives the class an at-a-glance teaching story.">
-            Subject performance
-          </SectionTitle>
-          <div className="h-72">
-            {isLoading ? (
-              <Skeleton className="h-full w-full rounded-2xl" />
-            ) : (
-              <ResponsiveContainer>
-                <BarChart data={subjectScores} margin={{ left: -10, right: 10 }}>
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="subject" stroke="var(--muted-foreground)" tickLine={false} axisLine={false} fontSize={12} />
-                  <YAxis stroke="var(--muted-foreground)" tickLine={false} axisLine={false} fontSize={12} />
-                  <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 16 }} />
-                  <Bar dataKey="averageScore" radius={[10, 10, 0, 0]} fill="var(--brand-600)" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Card>
-
-        <Card>
-          <SectionTitle action={<Badge tone="success">Stable</Badge>}>Teaching summary</SectionTitle>
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
-              <p className="text-sm font-semibold text-foreground">Top subject</p>
-              <p className="mt-1 text-sm text-muted-foreground">{topSubject ? `${topSubject.subject} (${topSubject.averageScore}%)` : "No data yet"}</p>
-            </div>
-            <div className="rounded-2xl border border-border/70 bg-secondary/25 p-4">
-              <p className="text-sm font-semibold text-foreground">Focus subject</p>
-              <p className="mt-1 text-sm text-muted-foreground">{weakSubject ? `${weakSubject.subject} (${weakSubject.averageScore}%)` : "No data yet"}</p>
-            </div>
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="text-foreground">Attendance band</span>
-                <span className="text-muted-foreground">{analytics?.attendance_rate ?? 0}%</span>
-              </div>
-              <ProgressBar value={analytics?.attendance_rate ?? 0} tone="success" />
-            </div>
-            {isError && <p className="text-sm text-danger">Failed to load class analytics.</p>}
           </div>
         </Card>
       </div>
 
       <Card>
-        <SectionTitle action={<Badge tone="brand">{subjectScores.length} subjects</Badge>} description="Score cards with more spacing and a more refined state when data is missing.">
-          Subject score overview
+        <SectionTitle action={<Badge tone="brand">{subjectScores.length} subjects</Badge>} description="A chart plus a short score list is enough to identify the next lesson focus.">
+          Subject performance
         </SectionTitle>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {subjectScores.map((item) => (
-            <div key={item.subject} className="rounded-2xl border border-border/70 bg-card p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-foreground">{item.subject}</p>
-                  <p className="text-xs text-muted-foreground">{item.entries} assessment(s)</p>
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <div className="h-72">
+              {isLoading ? (
+                <Skeleton className="h-full w-full rounded-2xl" />
+              ) : subjectScores.length > 0 ? (
+                <ResponsiveContainer>
+                  <BarChart data={subjectScores} margin={{ left: -10, right: 10 }}>
+                    <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="subject" stroke="var(--muted-foreground)" tickLine={false} axisLine={false} fontSize={12} />
+                    <YAxis stroke="var(--muted-foreground)" tickLine={false} axisLine={false} fontSize={12} />
+                    <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 16 }} />
+                    <Bar dataKey="averageScore" radius={[10, 10, 0, 0]} fill="var(--brand-600)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border/70 text-sm text-muted-foreground">
+                  No subject insights available yet.
                 </div>
-                <span className="text-lg font-bold text-foreground">{item.averageScore}%</span>
-              </div>
-              <div className="mt-4">
-                <ProgressBar value={item.averageScore} tone={item.averageScore >= 80 ? "success" : item.averageScore >= 65 ? "brand" : "warning"} />
-              </div>
+              )}
             </div>
-          ))}
-          {!isLoading && !isError && subjectScores.length === 0 && (
-            <EmptyState title="No subject insights available" description="Once enough marks are recorded, the class score overview will appear here." icon={BarChart3} />
-          )}
+            {isError && <p className="mt-4 text-sm text-danger">Failed to load class analytics.</p>}
+          </div>
+
+          <div className="space-y-3">
+            {subjectScores.map((item) => (
+              <div key={item.subject} className="rounded-2xl border border-border/70 bg-card p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-foreground">{item.subject}</p>
+                    <p className="text-xs text-muted-foreground">{item.entries} assessment(s)</p>
+                  </div>
+                  <span className="text-lg font-bold text-foreground">{item.averageScore}%</span>
+                </div>
+                <div className="mt-4">
+                  <ProgressBar value={item.averageScore} tone={item.averageScore >= 80 ? "success" : item.averageScore >= 65 ? "brand" : "warning"} />
+                </div>
+              </div>
+            ))}
+            {!isLoading && !isError && subjectScores.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+                Once enough marks are recorded, the subject performance list will appear here.
+              </div>
+            )}
+          </div>
         </div>
       </Card>
     </div>

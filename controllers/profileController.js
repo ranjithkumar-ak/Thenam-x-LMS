@@ -75,6 +75,7 @@ function buildDefaultProfile(role) {
     phone: preset.phone,
     location: preset.location,
     bio: preset.bio,
+    avatar_url: "",
     theme: preset.theme,
     accent: preset.accent,
     density: "comfortable",
@@ -95,6 +96,10 @@ function buildDefaultProfile(role) {
 async function getOrCreateProfile(role) {
   const existing = await Profile.findOne({ role });
   if (existing) {
+    if (existing.avatar_url === undefined) {
+      existing.avatar_url = "";
+      await existing.save();
+    }
     return existing;
   }
 
@@ -110,7 +115,7 @@ function appendActivity(profile, title, detail, tone = "brand") {
 
 export async function getProfile(req, res) {
   const profile = await getOrCreateProfile(req.params.role);
-  return ok(res, profile);
+  return ok(res, profile.toObject());
 }
 
 export async function updateProfile(req, res) {
@@ -141,7 +146,7 @@ export async function updateProfile(req, res) {
     rooms: ["role:admin", `role:${profile.role}`],
     profile: profile.toObject(),
   });
-  return ok(res, profile, undefined, "Profile saved successfully.");
+  return ok(res, profile.toObject(), undefined, "Profile saved successfully.");
 }
 
 export async function getProfileActivity(req, res) {

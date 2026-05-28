@@ -112,6 +112,7 @@ export const profileUpdateSchema = z.object({
   phone: z.string().trim().min(3).optional(),
   location: z.string().trim().min(2).optional(),
   bio: z.string().trim().min(10).optional(),
+  avatar_url: z.string().trim().optional(),
   theme: z.enum(["light", "dark", "system"]).optional(),
   accent: z.enum(["brand", "emerald", "amber", "rose"]).optional(),
   density: z.enum(["comfortable", "compact"]).optional(),
